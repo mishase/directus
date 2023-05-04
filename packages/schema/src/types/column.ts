@@ -22,4 +22,5 @@ export interface Column {
 	// Postgres Only
 	schema?: string;
 	foreign_key_schema?: string | null;
+	enum_values?: string[] | null;
 }

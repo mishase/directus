@@ -78,8 +78,16 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 		}
 
 		if (!info.primary) {
-			logger.warn(`Collection "${collection}" doesn't have a primary key column and will be ignored`);
-			continue;
+			info.primary = 'directus_id';
+
+			try {
+				await database.schema.alterTable(collection, (table) => table.increments(info.primary, { primaryKey: true }));
+				logger.info(`Added primary key to collection "${collection}"`);
+			} catch (err: any) {
+				logger.warn(`Failed to add primary key to collection "${collection}"`);
+				logger.warn(err);
+				continue;
+			}
 		}
 
 		if (collection.includes(' ')) {

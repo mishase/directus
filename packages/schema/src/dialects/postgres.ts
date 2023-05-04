@@ -10,6 +10,7 @@ type RawColumn = {
 	table: string;
 	schema: string;
 	data_type: string;
+	is_enum: boolean;
 	is_nullable: boolean;
 	generation_expression: null | string;
 	default_value: null | string;
@@ -28,6 +29,12 @@ type Constraint = {
 	foreign_key_table: null | string;
 	foreign_key_column: null | string;
 	has_auto_increment: null | boolean;
+};
+
+type RawEnum = {
+	table: string;
+	column: string;
+	value: string;
 };
 
 /**
@@ -359,7 +366,7 @@ export default class Postgres implements SchemaInspector {
 		 `;
 		}
 
-		const [columns, constraints] = await Promise.all([
+		const [columns, constraints, enums] = await Promise.all([
 			knex.raw<{ rows: RawColumn[] }>(
 				`
 			SELECT
@@ -367,11 +374,17 @@ export default class Postgres implements SchemaInspector {
 			  rel.relname AS table,
 			  rel.relnamespace::regnamespace::text as schema,
 			  att.atttypid::regtype::text AS data_type,
+			  (t.typtype = 'e') AS is_enum,
 			  NOT att.attnotnull AS is_nullable,
 			  ${generationSelect}
 			  CASE
 				 WHEN att.atttypid IN (1042, 1043) THEN (att.atttypmod - 4)::int4
 				 WHEN att.atttypid IN (1560, 1562) THEN (att.atttypmod)::int4
+				 WHEN att.atttypid = 1015 THEN
+					CASE
+					  WHEN att.atttypmod = -1 THEN NULL
+					  ELSE (att.atttypmod - 4)::int4
+					END
 				 ELSE NULL
 			  END AS max_length,
 			  des.description AS comment,
@@ -401,6 +414,7 @@ export default class Postgres implements SchemaInspector {
 			  LEFT JOIN pg_class rel ON att.attrelid = rel.oid
 			  LEFT JOIN pg_attrdef ad ON (att.attrelid, att.attnum) = (ad.adrelid, ad.adnum)
 			  LEFT JOIN pg_description des ON (att.attrelid, att.attnum) = (des.objoid, des.objsubid)
+    		  LEFT JOIN pg_type t ON att.atttypid = t.oid
 			WHERE
 			  rel.relnamespace IN (${schemaIn})
 			  ${table ? 'AND rel.relname = ?' : ''}
@@ -439,6 +453,24 @@ export default class Postgres implements SchemaInspector {
 			`,
 				bindings
 			),
+			knex.raw<{ rows: RawEnum[] }>(
+				`
+			SELECT
+			  rel.relname AS table,
+			  att.attname AS column,
+			  e.enumlabel AS value
+			FROM
+			  pg_enum e
+			JOIN pg_type t ON t.oid = e.enumtypid
+			JOIN pg_attribute att ON att.atttypid = t.oid
+			JOIN pg_class rel ON rel.oid = att.attrelid
+			JOIN pg_namespace n ON n.oid = rel.relnamespace
+			WHERE
+			  rel.relnamespace IN (${schemaIn})
+			  ${table ? 'AND rel.relname = ?' : ''}
+			  ${column ? 'AND att.attname = ?' : ''}`,
+				bindings
+			),
 		]);
 
 		const parsedColumns: Column[] = columns.rows.map((col): Column => {
@@ -447,6 +479,8 @@ export default class Postgres implements SchemaInspector {
 			);
 
 			const foreignKeyConstraint = constraintsForColumn.find((constraint) => constraint.type === 'f');
+
+			const values = enums.rows.filter((e) => e.column === col.name && e.table === col.table);
 
 			return {
 				...col,
@@ -457,6 +491,7 @@ export default class Postgres implements SchemaInspector {
 				foreign_key_schema: foreignKeyConstraint?.foreign_key_schema ?? null,
 				foreign_key_table: foreignKeyConstraint?.foreign_key_table ?? null,
 				foreign_key_column: foreignKeyConstraint?.foreign_key_column ?? null,
+				enum_values: col.is_enum ? values.map((v) => v.value) : null,
 			};
 		});
 

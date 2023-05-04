@@ -670,6 +670,21 @@ export class FieldsService {
 			column = table.dateTime(field.field, { useTz: false });
 		} else if (field.type === 'timestamp') {
 			column = table.timestamp(field.field, { useTz: true });
+		} else if (field.type === 'string[]') {
+			if (field.schema?.max_length != null) {
+				column = table.specificType(field.field, `varchar(${field.schema.max_length})[]`);
+			} else {
+				column = table.specificType(field.field, 'varchar[]');
+			}
+		} else if (field.type === 'text[]') {
+			column = table.specificType(field.field, 'text[]');
+		} else if (field.type === 'enum') {
+			column = table.enum(field.field, field.schema?.enum_values ?? [], {
+				enumName: field.schema?.data_type || `${field.name}_enum`,
+				existingType: !!field.schema?.data_type,
+				useNative: true,
+				...(field.schema?.schema && { schemaName: field.schema.schema }),
+			});
 		} else if (field.type.startsWith('geometry')) {
 			column = this.helpers.st.createColumn(table, field);
 		} else if (KNEX_TYPES.includes(field.type as (typeof KNEX_TYPES)[number])) {

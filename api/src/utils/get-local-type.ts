@@ -78,6 +78,7 @@ const localTypeMap: Record<string, Type | 'unknown'> = {
 	int8: 'integer',
 	bool: 'boolean',
 	'character varying': 'string',
+	'character varying[]': 'string[]',
 	character: 'string',
 	interval: 'string',
 	_varchar: 'string',
@@ -93,6 +94,8 @@ const localTypeMap: Record<string, Type | 'unknown'> = {
 	float4: 'float',
 	float8: 'float',
 	citext: 'text',
+	'text[]': 'text[]',
+	enum: 'enum',
 
 	// Oracle
 	number: 'integer',
@@ -108,10 +111,12 @@ export default function getLocalType(
 		numeric_precision?: null | number;
 		numeric_scale?: null | number;
 		max_length?: null | number;
+		is_enum?: boolean | null;
 	},
 	field?: { special?: FieldMeta['special'] }
 ): Type | 'unknown' {
 	if (!column) return 'alias';
+	if (column.is_enum) return 'enum';
 
 	const dataType = column.data_type.toLowerCase();
 	const type = localTypeMap[dataType.split('(')[0]!];

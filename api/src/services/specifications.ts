@@ -558,6 +558,21 @@ class OASSpecsService implements SpecificationSubService {
 			type: 'string',
 			format: 'uuid',
 		},
+		'string[]': {
+			type: 'array',
+			items: {
+				type: 'string',
+			},
+		},
+		'text[]': {
+			type: 'array',
+			items: {
+				type: 'string',
+			},
+		},
+		enum: {
+			type: 'string',
+		},
 		geometry: {
 			type: 'object',
 		},
