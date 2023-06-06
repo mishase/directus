@@ -185,8 +185,9 @@ onUnmounted(() => {
 		pointer-events: none;
 	}
 
-	&.collapsed.shadow {
-		box-shadow: 0 4px 7px -4px rgb(0 0 0 / 0.2);
+	&.collapsed.shadow,
+	&.small.shadow {
+		box-shadow: var(--header-shadow);
 
 		.title-container {
 			.headline {
